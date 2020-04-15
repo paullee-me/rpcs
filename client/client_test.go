@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/paullee-me/rpcs/_testutils"
 	"github.com/paullee-me/rpcs/protocol"
 	"github.com/paullee-me/rpcs/server"
 )

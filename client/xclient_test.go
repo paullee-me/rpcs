@@ -7,7 +7,6 @@ import (
 
 	"fmt"
 
-	"github.com/paullee-me/rpcs/_testutils"
 	"github.com/paullee-me/rpcs/protocol"
 	"github.com/paullee-me/rpcs/server"
 	"github.com/paullee-me/rpcs/share"
