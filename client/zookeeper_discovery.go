@@ -8,7 +8,7 @@ import (
 	"github.com/docker/libkv"
 	"github.com/docker/libkv/store"
 	"github.com/docker/libkv/store/zookeeper"
-	"github.com/smallnest/rpcx/v5/log"
+	"github.com/paullee-me/rpcs/log"
 )
 
 func init() {

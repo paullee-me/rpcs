@@ -8,10 +8,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/smallnest/rpcx/v5/share"
+	"github.com/paullee-me/rpcs/share"
 
 	lru "github.com/hashicorp/golang-lru"
-	"github.com/smallnest/rpcx/v5/log"
+	"github.com/paullee-me/rpcs/log"
 )
 
 // FileTransferHandler handles uploading file. Must close the connection after it finished.

@@ -4,8 +4,8 @@ import (
 	"context"
 	"net"
 
-	"github.com/smallnest/rpcx/v5/errors"
-	"github.com/smallnest/rpcx/v5/protocol"
+	"github.com/paullee-me/rpcs/errors"
+	"github.com/paullee-me/rpcs/protocol"
 )
 
 //PluginContainer represents a plugin container that defines all methods to manage plugins.

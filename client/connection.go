@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/smallnest/rpcx/v5/log"
-	"github.com/smallnest/rpcx/v5/share"
+	"github.com/paullee-me/rpcs/log"
+	"github.com/paullee-me/rpcs/share"
 )
 
 type ConnFactoryFn func(c *Client, network, address string) (net.Conn, error)

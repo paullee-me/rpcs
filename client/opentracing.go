@@ -5,7 +5,7 @@ import (
 
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
-	"github.com/smallnest/rpcx/v5/share"
+	"github.com/paullee-me/rpcs/share"
 )
 
 type OpenTracingPlugin struct{}

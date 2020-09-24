@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	testutils "github.com/smallnest/rpcx/v5/_testutils"
-	"github.com/smallnest/rpcx/v5/protocol"
-	"github.com/smallnest/rpcx/v5/server"
+	testutils "github.com/paullee-me/rpcs/_testutils"
+	"github.com/paullee-me/rpcs/protocol"
+	"github.com/paullee-me/rpcs/server"
 )
 
 type Args struct {

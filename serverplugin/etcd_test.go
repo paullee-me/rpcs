@@ -5,7 +5,7 @@ import (
 	"time"
 
 	metrics "github.com/rcrowley/go-metrics"
-	"github.com/smallnest/rpcx/v5/server"
+	"github.com/paullee-me/rpcs/server"
 )
 
 func TestEtcdRegistry(t *testing.T) {

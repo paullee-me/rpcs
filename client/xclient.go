@@ -14,9 +14,9 @@ import (
 	"time"
 
 	"github.com/juju/ratelimit"
-	ex "github.com/smallnest/rpcx/v5/errors"
-	"github.com/smallnest/rpcx/v5/protocol"
-	"github.com/smallnest/rpcx/v5/share"
+	ex "github.com/paullee-me/rpcs/errors"
+	"github.com/paullee-me/rpcs/protocol"
+	"github.com/paullee-me/rpcs/share"
 	"golang.org/x/sync/singleflight"
 )
 

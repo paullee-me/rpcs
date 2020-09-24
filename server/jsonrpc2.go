@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	"github.com/rs/cors"
-	"github.com/smallnest/rpcx/v5/protocol"
-	"github.com/smallnest/rpcx/v5/share"
+	"github.com/paullee-me/rpcs/protocol"
+	"github.com/paullee-me/rpcs/share"
 )
 
 func (s *Server) jsonrpcHandler(w http.ResponseWriter, r *http.Request) {
