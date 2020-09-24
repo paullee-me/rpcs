@@ -1,5 +1,3 @@
-// +build etcd
-
 package client
 
 import (
@@ -10,7 +8,7 @@ import (
 	"github.com/docker/libkv"
 	"github.com/docker/libkv/store"
 	etcd "github.com/smallnest/libkv-etcdv3-store"
-	"github.com/paullee-me/rpcs/log"
+	"github.com/smallnest/rpcx/v5/log"
 )
 
 func init() {
@@ -56,7 +54,7 @@ func NewEtcdV3DiscoveryStore(basePath string, kv store.Store) ServiceDiscovery {
 
 	ps, err := kv.List(basePath)
 	if err != nil {
-		log.Infof("cannot get services of from registry: %v, err: %v", basePath, err)
+		log.Errorf("cannot get services of from registry: %v, err: %v", basePath, err)
 		panic(err)
 	}
 	var pairs = make([]*KVPair, 0, len(ps))
@@ -100,7 +98,7 @@ func NewEtcdV3DiscoveryTemplate(basePath string, etcdAddr []string, options *sto
 		basePath = basePath[:len(basePath)-1]
 	}
 
-	kv, err := libkv.NewStore(store.ETCD, etcdAddr, options)
+	kv, err := libkv.NewStore(etcd.ETCDV3, etcdAddr, options)
 	if err != nil {
 		log.Infof("cannot create store: %v", err)
 		panic(err)
@@ -110,22 +108,25 @@ func NewEtcdV3DiscoveryTemplate(basePath string, etcdAddr []string, options *sto
 }
 
 // Clone clones this ServiceDiscovery with new servicePath.
-func (d EtcdV3Discovery) Clone(servicePath string) ServiceDiscovery {
+func (d *EtcdV3Discovery) Clone(servicePath string) ServiceDiscovery {
 	return NewEtcdV3DiscoveryStore(d.basePath+"/"+servicePath, d.kv)
 }
 
 // SetFilter sets the filer.
-func (d EtcdV3Discovery) SetFilter(filter ServiceDiscoveryFilter) {
+func (d *EtcdV3Discovery) SetFilter(filter ServiceDiscoveryFilter) {
 	d.filter = filter
 }
 
 // GetServices returns the servers
-func (d EtcdV3Discovery) GetServices() []*KVPair {
+func (d *EtcdV3Discovery) GetServices() []*KVPair {
 	return d.pairs
 }
 
 // WatchService returns a nil chan.
 func (d *EtcdV3Discovery) WatchService() chan []*KVPair {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	ch := make(chan []*KVPair, 10)
 	d.chans = append(d.chans, ch)
 	return ch
@@ -148,13 +149,14 @@ func (d *EtcdV3Discovery) RemoveWatcher(ch chan []*KVPair) {
 }
 
 func (d *EtcdV3Discovery) watch() {
+rewatch:
 	for {
 		var err error
 		var c <-chan []*store.KVPair
 		var tempDelay time.Duration
 
 		retry := d.RetriesAfterWatchFailed
-		for d.RetriesAfterWatchFailed == -1 || retry > 0 {
+		for d.RetriesAfterWatchFailed < 0 || retry >= 0 {
 			c, err = d.kv.WatchTree(d.basePath, nil)
 			if err != nil {
 				if d.RetriesAfterWatchFailed > 0 {
@@ -180,7 +182,6 @@ func (d *EtcdV3Discovery) watch() {
 			return
 		}
 
-	readChanges:
 		for {
 			select {
 			case <-d.stopCh:
@@ -188,7 +189,8 @@ func (d *EtcdV3Discovery) watch() {
 				return
 			case ps := <-c:
 				if ps == nil {
-					break readChanges
+					log.Warnf("rewatch %s", d.basePath)
+					goto rewatch
 				}
 				var pairs []*KVPair // latest servers
 				var prefix string
@@ -208,7 +210,7 @@ func (d *EtcdV3Discovery) watch() {
 							}
 						}
 					}
-					if p.Key == prefix[:len(prefix)-1] {
+					if p.Key == prefix[:len(prefix)-1] || !strings.HasPrefix(p.Key, prefix) {
 						continue
 					}
 
@@ -221,13 +223,12 @@ func (d *EtcdV3Discovery) watch() {
 				}
 				d.pairs = pairs
 
+				d.mu.Lock()
 				for _, ch := range d.chans {
 					ch := ch
 					go func() {
 						defer func() {
-							if r := recover(); r != nil {
-
-							}
+							recover()
 						}()
 
 						select {
@@ -237,8 +238,11 @@ func (d *EtcdV3Discovery) watch() {
 						}
 					}()
 				}
+				d.mu.Unlock()
 			}
 		}
+
+		log.Warn("chan is closed and will rewatch")
 	}
 }
 

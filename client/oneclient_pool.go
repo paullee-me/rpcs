@@ -3,7 +3,7 @@ package client
 import (
 	"sync/atomic"
 
-	"github.com/paullee-me/rpcs/protocol"
+	"github.com/smallnest/rpcx/v5/protocol"
 )
 
 // OneClientPool is a oneclient pool with fixed size.
@@ -14,7 +14,6 @@ type OneClientPool struct {
 	index      uint64
 	oneclients []*OneClient
 
-	servicePath       string
 	failMode          FailMode
 	selectMode        SelectMode
 	discovery         ServiceDiscovery
@@ -62,7 +61,7 @@ func NewBidirectionalOneClientPool(count int, failMode FailMode, selectMode Sele
 // Get returns a OneClient.
 // It does not remove this OneClient from its cache so you don't need to put it back.
 // Don't close this OneClient because maybe other goroutines are using this OneClient.
-func (p OneClientPool) Get() *OneClient {
+func (p *OneClientPool) Get() *OneClient {
 	i := atomic.AddUint64(&p.index, 1)
 	picked := int(i % p.count)
 	return p.oneclients[picked]

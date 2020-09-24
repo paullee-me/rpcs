@@ -15,9 +15,9 @@ import (
 
 	opentracing "github.com/opentracing/opentracing-go"
 	circuit "github.com/rubyist/circuitbreaker"
-	"github.com/paullee-me/rpcs/log"
-	"github.com/paullee-me/rpcs/protocol"
-	"github.com/paullee-me/rpcs/share"
+	"github.com/smallnest/rpcx/v5/log"
+	"github.com/smallnest/rpcx/v5/protocol"
+	"github.com/smallnest/rpcx/v5/share"
 	"go.opencensus.io/trace"
 )
 
@@ -372,8 +372,10 @@ func (client *Client) SendRaw(ctx context.Context, r *protocol.Message) (map[str
 	client.pending[seq] = call
 	client.mutex.Unlock()
 
-	data := r.Encode()
-	_, err := client.Conn.Write(data)
+	data := r.EncodeSlicePointer()
+	_, err := client.Conn.Write(*data)
+	protocol.PutData(data)
+
 	if err != nil {
 		client.mutex.Lock()
 		call = client.pending[seq]
@@ -518,6 +520,7 @@ func (client *Client) send(ctx context.Context, call *Call) {
 
 		data, err := codec.Encode(call.Args)
 		if err != nil {
+			delete(client.pending, seq)
 			call.Error = err
 			call.done()
 			return
@@ -532,9 +535,11 @@ func (client *Client) send(ctx context.Context, call *Call) {
 	if client.Plugins != nil {
 		client.Plugins.DoClientBeforeEncode(req)
 	}
-	data := req.Encode()
 
-	_, err := client.Conn.Write(data)
+	data := req.EncodeSlicePointer()
+	_, err := client.Conn.Write(*data)
+	protocol.PutData(data)
+
 	if err != nil {
 		client.mutex.Lock()
 		call = client.pending[seq]
@@ -544,6 +549,7 @@ func (client *Client) send(ctx context.Context, call *Call) {
 			call.Error = err
 			call.done()
 		}
+		protocol.FreeMsg(req)
 		return
 	}
 
@@ -568,9 +574,9 @@ func (client *Client) send(ctx context.Context, call *Call) {
 
 func (client *Client) input() {
 	var err error
-	var res = protocol.NewMessage()
 
 	for err == nil {
+		var res = protocol.NewMessage()
 		if client.option.ReadTimeout != 0 {
 			client.Conn.SetReadDeadline(time.Now().Add(client.option.ReadTimeout))
 		}
@@ -598,19 +604,14 @@ func (client *Client) input() {
 			if isServerMessage {
 				if client.ServerMessageChan != nil {
 					go client.handleServerRequest(res)
-					res = protocol.NewMessage()
 				}
 				continue
 			}
 		case res.MessageStatusType() == protocol.Error:
 			// We've got an error response. Give this to the request
 			if len(res.Metadata) > 0 {
-				meta := make(map[string]string, len(res.Metadata))
-				for k, v := range res.Metadata {
-					meta[k] = v
-				}
-				call.ResMetadata = meta
-				call.Error = ServiceError(meta[protocol.ServiceError])
+				call.ResMetadata = res.Metadata
+				call.Error = ServiceError(res.Metadata[protocol.ServiceError])
 			}
 
 			if call.Raw {
@@ -635,10 +636,6 @@ func (client *Client) input() {
 					}
 				}
 				if len(res.Metadata) > 0 {
-					meta := make(map[string]string, len(res.Metadata))
-					for k, v := range res.Metadata {
-						meta[k] = v
-					}
 					call.ResMetadata = res.Metadata
 				}
 
@@ -646,8 +643,6 @@ func (client *Client) input() {
 
 			call.done()
 		}
-
-		res.Reset()
 	}
 	// Terminate pending calls.
 

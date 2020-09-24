@@ -1,5 +1,3 @@
-// +build etcd
-
 package client
 
 import (
@@ -10,7 +8,7 @@ import (
 	"github.com/docker/libkv"
 	"github.com/docker/libkv/store"
 	"github.com/docker/libkv/store/etcd"
-	"github.com/paullee-me/rpcs/log"
+	"github.com/smallnest/rpcx/v5/log"
 )
 
 func init() {
@@ -107,22 +105,25 @@ func NewEtcdDiscoveryTemplate(basePath string, etcdAddr []string, options *store
 }
 
 // Clone clones this ServiceDiscovery with new servicePath.
-func (d EtcdDiscovery) Clone(servicePath string) ServiceDiscovery {
+func (d *EtcdDiscovery) Clone(servicePath string) ServiceDiscovery {
 	return NewEtcdDiscoveryStore(d.basePath+"/"+servicePath, d.kv)
 }
 
 // SetFilter sets the filer.
-func (d EtcdDiscovery) SetFilter(filter ServiceDiscoveryFilter) {
+func (d *EtcdDiscovery) SetFilter(filter ServiceDiscoveryFilter) {
 	d.filter = filter
 }
 
 // GetServices returns the servers
-func (d EtcdDiscovery) GetServices() []*KVPair {
+func (d *EtcdDiscovery) GetServices() []*KVPair {
 	return d.pairs
 }
 
 // WatchService returns a nil chan.
 func (d *EtcdDiscovery) WatchService() chan []*KVPair {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	ch := make(chan []*KVPair, 10)
 	d.chans = append(d.chans, ch)
 	return ch
@@ -151,7 +152,7 @@ func (d *EtcdDiscovery) watch() {
 		var tempDelay time.Duration
 
 		retry := d.RetriesAfterWatchFailed
-		for d.RetriesAfterWatchFailed == -1 || retry > 0 {
+		for d.RetriesAfterWatchFailed < 0 || retry >= 0 {
 			c, err = d.kv.WatchTree(d.basePath, nil)
 			if err != nil {
 				if d.RetriesAfterWatchFailed > 0 {
@@ -214,13 +215,12 @@ func (d *EtcdDiscovery) watch() {
 				}
 				d.pairs = pairs
 
+				d.mu.Lock()
 				for _, ch := range d.chans {
 					ch := ch
 					go func() {
 						defer func() {
-							if r := recover(); r != nil {
-
-							}
+							recover()
 						}()
 
 						select {
@@ -230,6 +230,7 @@ func (d *EtcdDiscovery) watch() {
 						}
 					}()
 				}
+				d.mu.Unlock()
 			}
 		}
 

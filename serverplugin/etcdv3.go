@@ -1,5 +1,3 @@
-// +build etcd
-
 package serverplugin
 
 import (
@@ -16,7 +14,7 @@ import (
 	"github.com/docker/libkv/store"
 	metrics "github.com/rcrowley/go-metrics"
 	etcd "github.com/smallnest/libkv-etcdv3-store"
-	"github.com/paullee-me/rpcs/log"
+	"github.com/smallnest/rpcx/v5/log"
 )
 
 func init() {
@@ -73,7 +71,6 @@ func (p *EtcdV3RegisterPlugin) Start() error {
 		ticker := time.NewTicker(p.UpdateInterval)
 		go func() {
 			defer p.kv.Close()
-
 			// refresh service TTL
 			for {
 				select {
@@ -91,13 +88,13 @@ func (p *EtcdV3RegisterPlugin) Start() error {
 						nodePath := fmt.Sprintf("%s/%s/%s", p.BasePath, name, p.ServiceAddress)
 						kvPair, err := p.kv.Get(nodePath)
 						if err != nil {
-							log.Infof("can't get data of node: %s, because of %v", nodePath, err.Error())
+							log.Warnf("can't get data of node: %s, because of %v", nodePath, err)
 
 							p.metasLock.RLock()
 							meta := p.metas[name]
 							p.metasLock.RUnlock()
 
-							err = p.kv.Put(nodePath, []byte(meta), &store.WriteOptions{TTL: p.UpdateInterval * 3})
+							err = p.kv.Put(nodePath, []byte(meta), &store.WriteOptions{TTL: p.UpdateInterval + time.Second})
 							if err != nil {
 								log.Errorf("cannot re-create etcd path %s: %v", nodePath, err)
 							}
@@ -105,7 +102,7 @@ func (p *EtcdV3RegisterPlugin) Start() error {
 						} else {
 							v, _ := url.ParseQuery(string(kvPair.Value))
 							v.Set("tps", string(data))
-							p.kv.Put(nodePath, []byte(v.Encode()), &store.WriteOptions{TTL: p.UpdateInterval * 3})
+							p.kv.Put(nodePath, []byte(v.Encode()), &store.WriteOptions{TTL: p.UpdateInterval + time.Second})
 						}
 					}
 				}
@@ -118,11 +115,8 @@ func (p *EtcdV3RegisterPlugin) Start() error {
 
 // Stop unregister all services.
 func (p *EtcdV3RegisterPlugin) Stop() error {
-	close(p.dying)
-	<-p.done
-
 	if p.kv == nil {
-		kv, err := libkv.NewStore(store.ETCD, p.EtcdServers, p.Options)
+		kv, err := libkv.NewStore(etcd.ETCDV3, p.EtcdServers, p.Options)
 		if err != nil {
 			log.Errorf("cannot create etcd registry: %v", err)
 			return err
@@ -142,6 +136,9 @@ func (p *EtcdV3RegisterPlugin) Stop() error {
 			log.Infof("delete path %s", nodePath, err)
 		}
 	}
+
+	close(p.dying)
+	<-p.done
 	return nil
 }
 
@@ -157,14 +154,14 @@ func (p *EtcdV3RegisterPlugin) HandleConnAccept(conn net.Conn) (net.Conn, bool) 
 // Register handles registering event.
 // this service is registered at BASE/serviceName/thisIpAddress node
 func (p *EtcdV3RegisterPlugin) Register(name string, rcvr interface{}, metadata string) (err error) {
-	if "" == strings.TrimSpace(name) {
+	if strings.TrimSpace(name) == "" {
 		err = errors.New("Register service `name` can't be empty")
 		return
 	}
 
 	if p.kv == nil {
 		etcd.Register()
-		kv, err := libkv.NewStore(store.ETCD, p.EtcdServers, nil)
+		kv, err := libkv.NewStore(etcd.ETCDV3, p.EtcdServers, nil)
 		if err != nil {
 			log.Errorf("cannot create etcd registry: %v", err)
 			return err
@@ -208,14 +205,14 @@ func (p *EtcdV3RegisterPlugin) RegisterFunction(serviceName, fname string, fn in
 }
 
 func (p *EtcdV3RegisterPlugin) Unregister(name string) (err error) {
-	if "" == strings.TrimSpace(name) {
+	if strings.TrimSpace(name) == "" {
 		err = errors.New("Register service `name` can't be empty")
 		return
 	}
 
 	if p.kv == nil {
 		etcd.Register()
-		kv, err := libkv.NewStore(store.ETCD, p.EtcdServers, nil)
+		kv, err := libkv.NewStore(etcd.ETCDV3, p.EtcdServers, nil)
 		if err != nil {
 			log.Errorf("cannot create etcd registry: %v", err)
 			return err

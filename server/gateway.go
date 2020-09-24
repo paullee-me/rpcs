@@ -12,15 +12,15 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/rs/cors"
-	"github.com/paullee-me/rpcs/log"
-	"github.com/paullee-me/rpcs/protocol"
-	"github.com/paullee-me/rpcs/share"
+	"github.com/smallnest/rpcx/v5/log"
+	"github.com/smallnest/rpcx/v5/protocol"
+	"github.com/smallnest/rpcx/v5/share"
 	"github.com/soheilhy/cmux"
 )
 
 func (s *Server) startGateway(network string, ln net.Listener) net.Listener {
 	if network != "tcp" && network != "tcp4" && network != "tcp6" {
-		log.Infof("network is not tcp/tcp4/tcp6 so can not start gateway")
+		// log.Infof("network is not tcp/tcp4/tcp6 so can not start gateway")
 		return ln
 	}
 
@@ -72,7 +72,11 @@ func (s *Server) startHTTP1APIGateway(ln net.Listener) {
 	}
 
 	if err := s.gatewayHTTPServer.Serve(ln); err != nil {
-		log.Errorf("error in gateway Serve: %s", err)
+		if err == ErrServerClosed || strings.Contains(err.Error(), "listener closed") {
+			log.Info("gateway server closed")
+		} else {
+			log.Errorf("error in gateway Serve: %T %s", err, err)
+		}
 	}
 }
 
@@ -96,9 +100,7 @@ func (s *Server) handleGatewayRequest(w http.ResponseWriter, r *http.Request, pa
 
 	if r.Header.Get(XServicePath) == "" {
 		servicePath := params.ByName("servicePath")
-		if strings.HasPrefix(servicePath, "/") {
-			servicePath = servicePath[1:]
-		}
+		servicePath = strings.TrimPrefix(servicePath, "/")
 		r.Header.Set(XServicePath, servicePath)
 	}
 	servicePath := r.Header.Get(XServicePath)

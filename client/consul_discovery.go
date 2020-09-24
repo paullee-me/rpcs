@@ -1,5 +1,3 @@
-// +build consul
-
 package client
 
 import (
@@ -10,7 +8,7 @@ import (
 	"github.com/docker/libkv"
 	"github.com/docker/libkv/store"
 	"github.com/docker/libkv/store/consul"
-	"github.com/paullee-me/rpcs/log"
+	"github.com/smallnest/rpcx/v5/log"
 )
 
 func init() {
@@ -24,7 +22,7 @@ type ConsulDiscovery struct {
 	kv       store.Store
 	pairs    []*KVPair
 	chans    []chan []*KVPair
-	mu       sync.Locker
+	mu       sync.Mutex
 	// -1 means it always retry to watch until zookeeper is ok, 0 means no retry.
 	RetriesAfterWatchFailed int
 
@@ -99,22 +97,25 @@ func NewConsulDiscoveryTemplate(basePath string, consulAddr []string, options *s
 }
 
 // Clone clones this ServiceDiscovery with new servicePath.
-func (d ConsulDiscovery) Clone(servicePath string) ServiceDiscovery {
+func (d *ConsulDiscovery) Clone(servicePath string) ServiceDiscovery {
 	return NewConsulDiscoveryStore(d.basePath+"/"+servicePath, d.kv)
 }
 
 // SetFilter sets the filer.
-func (d ConsulDiscovery) SetFilter(filter ServiceDiscoveryFilter) {
+func (d *ConsulDiscovery) SetFilter(filter ServiceDiscoveryFilter) {
 	d.filter = filter
 }
 
 // GetServices returns the servers
-func (d ConsulDiscovery) GetServices() []*KVPair {
+func (d *ConsulDiscovery) GetServices() []*KVPair {
 	return d.pairs
 }
 
 // WatchService returns a nil chan.
 func (d *ConsulDiscovery) WatchService() chan []*KVPair {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	ch := make(chan []*KVPair, 10)
 	d.chans = append(d.chans, ch)
 	return ch
@@ -142,7 +143,7 @@ func (d *ConsulDiscovery) watch() {
 		var tempDelay time.Duration
 
 		retry := d.RetriesAfterWatchFailed
-		for d.RetriesAfterWatchFailed == -1 || retry > 0 {
+		for d.RetriesAfterWatchFailed < 0 || retry >= 0 {
 			c, err = d.kv.WatchTree(d.basePath, nil)
 			if err != nil {
 				if d.RetriesAfterWatchFailed > 0 {
@@ -191,13 +192,12 @@ func (d *ConsulDiscovery) watch() {
 				}
 				d.pairs = pairs
 
+				d.mu.Lock()
 				for _, ch := range d.chans {
 					ch := ch
 					go func() {
 						defer func() {
-							if r := recover(); r != nil {
-
-							}
+							recover()
 						}()
 						select {
 						case ch <- pairs:
@@ -206,6 +206,7 @@ func (d *ConsulDiscovery) watch() {
 						}
 					}()
 				}
+				d.mu.Unlock()
 			}
 		}
 

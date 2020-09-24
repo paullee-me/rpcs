@@ -7,9 +7,9 @@ import (
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
 	"github.com/opentracing/opentracing-go/log"
-	"github.com/paullee-me/rpcs/protocol"
-	"github.com/paullee-me/rpcs/server"
-	"github.com/paullee-me/rpcs/share"
+	"github.com/smallnest/rpcx/v5/protocol"
+	"github.com/smallnest/rpcx/v5/server"
+	"github.com/smallnest/rpcx/v5/share"
 )
 
 type OpenTracingPlugin struct{}
@@ -52,7 +52,7 @@ func (p OpenTracingPlugin) PreHandleRequest(ctx context.Context, r *protocol.Mes
 		ext.RPCServerOption(wireContext))
 
 	clientConn := ctx.Value(server.RemoteConnContextKey).(net.Conn)
-	span1.LogFields(log.String("remote_addr", clientConn.RemoteAddr().Network()))
+	span1.LogFields(log.String("remote_addr", clientConn.RemoteAddr().String()))
 
 	if rpcxContext, ok := ctx.(*share.Context); ok {
 		rpcxContext.SetValue(share.OpentracingSpanServerKey, span1)

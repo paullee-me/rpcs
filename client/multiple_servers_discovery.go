@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/paullee-me/rpcs/log"
+	"github.com/smallnest/rpcx/v5/log"
 )
 
 // MultipleServersDiscovery is a multiple servers service discovery.
@@ -24,22 +24,24 @@ func NewMultipleServersDiscovery(pairs []*KVPair) ServiceDiscovery {
 }
 
 // Clone clones this ServiceDiscovery with new servicePath.
-func (d MultipleServersDiscovery) Clone(servicePath string) ServiceDiscovery {
-	return &d
+func (d *MultipleServersDiscovery) Clone(servicePath string) ServiceDiscovery {
+	return d
 }
 
 // SetFilter sets the filer.
-func (d MultipleServersDiscovery) SetFilter(filter ServiceDiscoveryFilter) {
-
+func (d *MultipleServersDiscovery) SetFilter(filter ServiceDiscoveryFilter) {
 }
 
 // GetServices returns the configured server
-func (d MultipleServersDiscovery) GetServices() []*KVPair {
+func (d *MultipleServersDiscovery) GetServices() []*KVPair {
 	return d.pairs
 }
 
 // WatchService returns a nil chan.
 func (d *MultipleServersDiscovery) WatchService() chan []*KVPair {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	ch := make(chan []*KVPair, 10)
 	d.chans = append(d.chans, ch)
 	return ch
@@ -63,13 +65,14 @@ func (d *MultipleServersDiscovery) RemoveWatcher(ch chan []*KVPair) {
 
 // Update is used to update servers at runtime.
 func (d *MultipleServersDiscovery) Update(pairs []*KVPair) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	for _, ch := range d.chans {
 		ch := ch
 		go func() {
 			defer func() {
-				if r := recover(); r != nil {
-
-				}
+				recover()
 			}()
 			select {
 			case ch <- pairs:
@@ -81,5 +84,4 @@ func (d *MultipleServersDiscovery) Update(pairs []*KVPair) {
 }
 
 func (d *MultipleServersDiscovery) Close() {
-
 }

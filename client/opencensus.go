@@ -3,13 +3,13 @@ package client
 import (
 	"context"
 
-	"github.com/paullee-me/rpcs/share"
+	"github.com/smallnest/rpcx/v5/share"
 	"go.opencensus.io/trace"
 )
 
 type OpenCensusPlugin struct{}
 
-func (p *OpenCensusPlugin) DoPreCall(ctx context.Context, servicePath, serviceMethod string, args interface{}) error {
+func (p *OpenCensusPlugin) PreCall(ctx context.Context, servicePath, serviceMethod string, args interface{}) error {
 	var span1 *trace.Span
 
 	// if it is called in rpc service in case that a service calls antoher service,
@@ -33,7 +33,7 @@ func (p *OpenCensusPlugin) DoPreCall(ctx context.Context, servicePath, serviceMe
 	}
 	return nil
 }
-func (p *OpenCensusPlugin) DoPostCall(ctx context.Context, servicePath, serviceMethod string, args interface{}, reply interface{}, err error) error {
+func (p *OpenCensusPlugin) PostCall(ctx context.Context, servicePath, serviceMethod string, args interface{}, reply interface{}, err error) error {
 	if rpcxContext, ok := ctx.(*share.Context); ok {
 		span1 := rpcxContext.Value(share.OpencensusSpanClientKey)
 		if span1 != nil {

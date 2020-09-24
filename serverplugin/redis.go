@@ -1,5 +1,3 @@
-// +build redis
-
 package serverplugin
 
 import (
@@ -14,9 +12,9 @@ import (
 
 	"github.com/abronan/valkeyrie"
 	"github.com/abronan/valkeyrie/store"
-	"github.com/abronan/valkeyrie/store/redis"
 	metrics "github.com/rcrowley/go-metrics"
-	"github.com/paullee-me/rpcs/log"
+	"github.com/smallnest/rpcx/v5/log"
+	"github.com/smallnest/valkeyrie/store/redis"
 )
 
 func init() {
@@ -97,7 +95,7 @@ func (p *RedisRegisterPlugin) Start() error {
 							meta := p.metas[name]
 							p.metasLock.RUnlock()
 
-							err = p.kv.Put(nodePath, []byte(meta), &store.WriteOptions{TTL: p.UpdateInterval * 3})
+							err = p.kv.Put(nodePath, []byte(meta), &store.WriteOptions{TTL: p.UpdateInterval * 2})
 							if err != nil {
 								log.Errorf("cannot re-create redis path %s: %v", nodePath, err)
 							}
@@ -105,7 +103,7 @@ func (p *RedisRegisterPlugin) Start() error {
 						} else {
 							v, _ := url.ParseQuery(string(kvPair.Value))
 							v.Set("tps", string(data))
-							p.kv.Put(nodePath, []byte(v.Encode()), &store.WriteOptions{TTL: p.UpdateInterval * 3})
+							p.kv.Put(nodePath, []byte(v.Encode()), &store.WriteOptions{TTL: p.UpdateInterval * 2})
 						}
 					}
 				}
@@ -118,9 +116,6 @@ func (p *RedisRegisterPlugin) Start() error {
 
 // Stop unregister all services.
 func (p *RedisRegisterPlugin) Stop() error {
-	close(p.dying)
-	<-p.done
-
 	if p.kv == nil {
 		kv, err := valkeyrie.NewStore(store.REDIS, p.RedisServers, p.Options)
 		if err != nil {
@@ -142,6 +137,10 @@ func (p *RedisRegisterPlugin) Stop() error {
 			log.Infof("delete path %s", nodePath, err)
 		}
 	}
+
+	close(p.dying)
+	<-p.done
+
 	return nil
 }
 
@@ -157,7 +156,7 @@ func (p *RedisRegisterPlugin) HandleConnAccept(conn net.Conn) (net.Conn, bool) {
 // Register handles registering event.
 // this service is registered at BASE/serviceName/thisIpAddress node
 func (p *RedisRegisterPlugin) Register(name string, rcvr interface{}, metadata string) (err error) {
-	if "" == strings.TrimSpace(name) {
+	if strings.TrimSpace(name) == "" {
 		err = errors.New("Register service `name` can't be empty")
 		return
 	}
@@ -204,7 +203,7 @@ func (p *RedisRegisterPlugin) Register(name string, rcvr interface{}, metadata s
 }
 
 func (p *RedisRegisterPlugin) Unregister(name string) (err error) {
-	if "" == strings.TrimSpace(name) {
+	if strings.TrimSpace(name) == "" {
 		err = errors.New("Register service `name` can't be empty")
 		return
 	}

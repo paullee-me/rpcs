@@ -1,5 +1,3 @@
-// +build zookeeper
-
 package client
 
 import (
@@ -10,7 +8,7 @@ import (
 	"github.com/docker/libkv"
 	"github.com/docker/libkv/store"
 	"github.com/docker/libkv/store/zookeeper"
-	"github.com/paullee-me/rpcs/log"
+	"github.com/smallnest/rpcx/v5/log"
 )
 
 func init() {
@@ -102,22 +100,25 @@ func NewZookeeperDiscoveryTemplate(basePath string, zkAddr []string, options *st
 }
 
 // Clone clones this ServiceDiscovery with new servicePath.
-func (d ZookeeperDiscovery) Clone(servicePath string) ServiceDiscovery {
+func (d *ZookeeperDiscovery) Clone(servicePath string) ServiceDiscovery {
 	return NewZookeeperDiscoveryWithStore(d.basePath+"/"+servicePath, d.kv)
 }
 
 // SetFilter sets the filer.
-func (d ZookeeperDiscovery) SetFilter(filter ServiceDiscoveryFilter) {
+func (d *ZookeeperDiscovery) SetFilter(filter ServiceDiscoveryFilter) {
 	d.filter = filter
 }
 
 // GetServices returns the servers
-func (d ZookeeperDiscovery) GetServices() []*KVPair {
+func (d *ZookeeperDiscovery) GetServices() []*KVPair {
 	return d.pairs
 }
 
 // WatchService returns a nil chan.
 func (d *ZookeeperDiscovery) WatchService() chan []*KVPair {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	ch := make(chan []*KVPair, 10)
 	d.chans = append(d.chans, ch)
 	return ch
@@ -146,7 +147,7 @@ func (d *ZookeeperDiscovery) watch() {
 		var tempDelay time.Duration
 
 		retry := d.RetriesAfterWatchFailed
-		for d.RetriesAfterWatchFailed == -1 || retry > 0 {
+		for d.RetriesAfterWatchFailed < 0 || retry >= 0 {
 			c, err = d.kv.WatchTree(d.basePath, nil)
 			if err != nil {
 				if d.RetriesAfterWatchFailed > 0 {
@@ -196,13 +197,12 @@ func (d *ZookeeperDiscovery) watch() {
 				}
 				d.pairs = pairs
 
+				d.mu.Lock()
 				for _, ch := range d.chans {
 					ch := ch
 					go func() {
 						defer func() {
-							if r := recover(); r != nil {
-
-							}
+							recover()
 						}()
 						select {
 						case ch <- pairs:
@@ -211,6 +211,7 @@ func (d *ZookeeperDiscovery) watch() {
 						}
 					}()
 				}
+				d.mu.Unlock()
 			}
 		}
 

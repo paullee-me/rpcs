@@ -45,7 +45,7 @@ doc:
 	godoc -http=:6060
 
 deps:
-	go list -f '{{ join .Deps  "\n"}}' ./... |grep "/" | grep -v "github.com/paullee-me/rpcs"| grep "\." | sort |uniq
+	go list -f '{{ join .Deps  "\n"}}' ./... |grep "/" | grep -v "github.com/smallnest/rpcx/v5"| grep "\." | sort |uniq
 
 fmt:
 	go fmt ./...
@@ -54,10 +54,10 @@ build:
 	go build ./...
 
 build-all:
-	go build -tags "reuseport kcp quic zookeeper etcd consul ping utp" ./...
+	go build -tags "kcp quic ping utp" ./...
 
 test:
-	go test -race -tags "reuseport kcp quic zookeeper etcd consul ping utp" ./...
+	go test -race -tags "kcp quic ping utp" ./...
 
 cover:
 	gocov test ./... | gocov-html > cover.html

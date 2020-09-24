@@ -3,7 +3,7 @@ package serverplugin
 import (
 	"context"
 
-	"github.com/paullee-me/rpcs/protocol"
+	"github.com/smallnest/rpcx/v5/protocol"
 )
 
 var aliasAppliedKey = "__aliasAppliedKey"

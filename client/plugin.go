@@ -4,7 +4,7 @@ import (
 	"context"
 	"net"
 
-	"github.com/paullee-me/rpcs/protocol"
+	"github.com/smallnest/rpcx/v5/protocol"
 )
 
 // pluginContainer implements PluginContainer interface.
@@ -50,7 +50,7 @@ func (p *pluginContainer) All() []Plugin {
 func (p *pluginContainer) DoPreCall(ctx context.Context, servicePath, serviceMethod string, args interface{}) error {
 	for i := range p.plugins {
 		if plugin, ok := p.plugins[i].(PreCallPlugin); ok {
-			err := plugin.DoPreCall(ctx, servicePath, serviceMethod, args)
+			err := plugin.PreCall(ctx, servicePath, serviceMethod, args)
 			if err != nil {
 				return err
 			}
@@ -64,7 +64,7 @@ func (p *pluginContainer) DoPreCall(ctx context.Context, servicePath, serviceMet
 func (p *pluginContainer) DoPostCall(ctx context.Context, servicePath, serviceMethod string, args interface{}, reply interface{}, err error) error {
 	for i := range p.plugins {
 		if plugin, ok := p.plugins[i].(PostCallPlugin); ok {
-			err = plugin.DoPostCall(ctx, servicePath, serviceMethod, args, reply, err)
+			err = plugin.PostCall(ctx, servicePath, serviceMethod, args, reply, err)
 			if err != nil {
 				return err
 			}
@@ -143,15 +143,27 @@ func (p *pluginContainer) DoClientAfterDecode(req *protocol.Message) error {
 	return nil
 }
 
+// DoWrapSelect is called when select a node.
+func (p *pluginContainer) DoWrapSelect(fn SelectFunc) SelectFunc {
+	var rt = fn
+	for i := range p.plugins {
+		if pn, ok := p.plugins[i].(SelectNodePlugin); ok {
+			rt = pn.WrapSelect(rt)
+		}
+	}
+
+	return rt
+}
+
 type (
 	// PreCallPlugin is invoked before the client calls a server.
 	PreCallPlugin interface {
-		DoPreCall(ctx context.Context, servicePath, serviceMethod string, args interface{}) error
+		PreCall(ctx context.Context, servicePath, serviceMethod string, args interface{}) error
 	}
 
 	// PostCallPlugin is invoked after the client calls a server.
 	PostCallPlugin interface {
-		DoPostCall(ctx context.Context, servicePath, serviceMethod string, args interface{}, reply interface{}, err error) error
+		PostCall(ctx context.Context, servicePath, serviceMethod string, args interface{}, reply interface{}, err error) error
 	}
 
 	// ConnCreatedPlugin is invoked when the client connection has created.
@@ -179,6 +191,11 @@ type (
 		ClientAfterDecode(*protocol.Message) error
 	}
 
+	// SelectNodePlugin can interrupt selecting of xclient and add customized logics such as skipping some nodes.
+	SelectNodePlugin interface {
+		WrapSelect(SelectFunc) SelectFunc
+	}
+
 	//PluginContainer represents a plugin container that defines all methods to manage plugins.
 	//And it also defines all extension points.
 	PluginContainer interface {
@@ -195,5 +212,7 @@ type (
 
 		DoClientBeforeEncode(*protocol.Message) error
 		DoClientAfterDecode(*protocol.Message) error
+
+		DoWrapSelect(SelectFunc) SelectFunc
 	}
 )

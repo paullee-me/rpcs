@@ -7,8 +7,9 @@ import (
 
 	"time"
 
-	"github.com/paullee-me/rpcs/protocol"
-	"github.com/paullee-me/rpcs/share"
+	testutils "github.com/smallnest/rpcx/v5/_testutils"
+	"github.com/smallnest/rpcx/v5/protocol"
+	"github.com/smallnest/rpcx/v5/share"
 )
 
 type Args struct {
@@ -40,8 +41,10 @@ func (t *Arith) ConsumingOperation(ctx context.Context, args *testutils.ThriftAr
 
 func TestShutdownHook(t *testing.T) {
 	s := NewServer()
+	var cancel1 context.CancelFunc
 	s.RegisterOnShutdown(func(s *Server) {
-		ctx, _ := context.WithTimeout(context.Background(), 155*time.Second)
+		var ctx context.Context
+		ctx, cancel1 = context.WithTimeout(context.Background(), 155*time.Second)
 		s.Shutdown(ctx)
 	})
 	s.RegisterName("Arith2", new(Arith), "")
@@ -52,6 +55,10 @@ func TestShutdownHook(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	s.Shutdown(ctx)
 	cancel()
+	if cancel1 != nil {
+		cancel1()
+	}
+
 }
 
 func TestHandleRequest(t *testing.T) {
@@ -82,7 +89,7 @@ func TestHandleRequest(t *testing.T) {
 
 	req.Payload = data
 
-	server := &Server{}
+	server := NewServer()
 	server.RegisterName("Arith", new(Arith), "")
 	res, err := server.handleRequest(context.Background(), req)
 	if err != nil {

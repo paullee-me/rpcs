@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/grandcat/zeroconf"
-	"github.com/paullee-me/rpcs/log"
+	"github.com/smallnest/rpcx/v5/log"
 )
 
 type serviceMeta struct {
@@ -61,22 +61,25 @@ func NewMDNSDiscoveryTemplate(timeout time.Duration, watchInterval time.Duration
 }
 
 // Clone clones this ServiceDiscovery with new servicePath.
-func (d MDNSDiscovery) Clone(servicePath string) ServiceDiscovery {
+func (d *MDNSDiscovery) Clone(servicePath string) ServiceDiscovery {
 	return NewMDNSDiscovery(servicePath, d.Timeout, d.WatchInterval, d.domain)
 }
 
 // SetFilter sets the filer.
-func (d MDNSDiscovery) SetFilter(filter ServiceDiscoveryFilter) {
+func (d *MDNSDiscovery) SetFilter(filter ServiceDiscoveryFilter) {
 	d.filter = filter
 }
 
 // GetServices returns the servers
-func (d MDNSDiscovery) GetServices() []*KVPair {
+func (d *MDNSDiscovery) GetServices() []*KVPair {
 	return d.pairs
 }
 
 // WatchService returns a nil chan.
 func (d *MDNSDiscovery) WatchService() chan []*KVPair {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	ch := make(chan []*KVPair, 10)
 	d.chans = append(d.chans, ch)
 	return ch
@@ -111,13 +114,13 @@ func (d *MDNSDiscovery) watch() {
 			pairs, err := d.browse()
 			if err == nil {
 				d.pairs = pairs
+
+				d.mu.Lock()
 				for _, ch := range d.chans {
 					ch := ch
 					go func() {
 						defer func() {
-							if r := recover(); r != nil {
-
-							}
+							recover()
 						}()
 						select {
 						case ch <- pairs:
@@ -126,6 +129,7 @@ func (d *MDNSDiscovery) watch() {
 						}
 					}()
 				}
+				d.mu.Unlock()
 			}
 		}
 	}

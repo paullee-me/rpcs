@@ -9,13 +9,18 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/paullee-me/rpcs/log"
-	"github.com/paullee-me/rpcs/share"
+	"github.com/smallnest/rpcx/v5/log"
+	"github.com/smallnest/rpcx/v5/share"
 )
 
-type makeConnFn func(c *Client, network, address string) (net.Conn, error)
+type ConnFactoryFn func(c *Client, network, address string) (net.Conn, error)
 
-var makeConnMap = make(map[string]makeConnFn)
+var ConnFactories = map[string]ConnFactoryFn{
+	"http": newDirectHTTPConn,
+	"kcp":  newDirectKCPConn,
+	"quic": newDirectQuicConn,
+	"unix": newDirectConn,
+}
 
 // Connect connects the server via specified network.
 func (c *Client) Connect(network, address string) error {
@@ -32,7 +37,7 @@ func (c *Client) Connect(network, address string) error {
 	case "unix":
 		conn, err = newDirectConn(c, network, address)
 	default:
-		fn := makeConnMap[network]
+		fn := ConnFactories[network]
 		if fn != nil {
 			conn, err = fn(c, network, address)
 		} else {
@@ -103,6 +108,9 @@ func newDirectConn(c *Client, network, address string) (net.Conn, error) {
 var connected = "200 Connected to rpcx"
 
 func newDirectHTTPConn(c *Client, network, address string) (net.Conn, error) {
+	if c == nil {
+		return nil, errors.New("empty client")
+	}
 	path := c.option.RPCPath
 	if path == "" {
 		path = share.DefaultRPCPath
@@ -112,7 +120,7 @@ func newDirectHTTPConn(c *Client, network, address string) (net.Conn, error) {
 	var tlsConn *tls.Conn
 	var err error
 
-	if c != nil && c.option.TLSConfig != nil {
+	if c.option.TLSConfig != nil {
 		dialer := &net.Dialer{
 			Timeout: c.option.ConnectTimeout,
 		}
